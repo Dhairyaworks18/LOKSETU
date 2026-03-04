@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+
+  body {
+    @apply font-sora bg-page-bg text-charcoal antialiased;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* Progress tracker animated dot */
+@keyframes activePulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(31, 122, 122, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(31, 122, 122, 0);
+  }
+}
+
+.progress-dot-active {
+  animation: activePulse 1.5s ease-in-out infinite;
+}
+
+/* Hide scrollbar for clean internal sections but allow scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* Smooth slide-up modal */
+@keyframes modalSlideUp {
+  from {
+    transform: translateY(30px) scale(0.98);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-slide-up {
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Toast slide-up */
+@keyframes toastSlideIn {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.toast-slide-in {
+  animation: toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
