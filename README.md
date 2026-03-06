@@ -2,7 +2,17 @@ This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next
 
 ## Getting Started
 
-First, run the development server:
+First, you need to set up Firebase for LokSetu:
+1. Go to firebase.google.com -> create project named `loksetu`
+2. Enable Firestore in test mode, region `asia-south1 (Mumbai)`
+3. Enable Storage in test mode
+4. Go to Project Settings -> Your Apps -> Web app -> copy config
+5. Copy `.env.local.example` to `.env.local` and paste values
+6. Run `npm install firebase`
+7. Run `npm run dev`
+8. To deploy: run `vercel` and add all 6 env variables in Vercel dashboard under Settings -> Environment Variables
+
+Then, run the development server:
 
 ```bash
 npm run dev
