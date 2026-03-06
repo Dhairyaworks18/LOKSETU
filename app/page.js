@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { fetchReports, submitReport, upvoteReport } from "../lib/firebaseHelpers";
 import { onAuthChange, signOut } from "../lib/authHelpers";
-import { Search, Heart, Share, MapPin, Map, Home, FileText, BarChart2, MoreHorizontal, Camera, X } from "lucide-react";
+import { Search, Heart, Share, MapPin, Map, Home, FileText, BarChart2, MoreHorizontal, Camera, X, ChevronDown, Info } from "lucide-react";
 import { ToastContainer } from "./components/Toast";
 
 const IssueMap = dynamic(() => import("./components/IssueMap"), {
@@ -19,6 +19,26 @@ const IssueMap = dynamic(() => import("./components/IssueMap"), {
 
 
 const STATUS_STEPS = ["Filed", "Review", "Assigned", "Work", "Resolved"];
+
+function calculateTrustScore(reports, user) {
+  if (!reports || !Array.isArray(reports) || !user) return 0;
+  const currentUserId = user.uid;
+  const currentReporter = user.displayName || user.email;
+  let score = 0;
+  for (const r of reports) {
+    const isOwner = r.userId === currentUserId || r.reporter === currentReporter;
+    if (!isOwner) continue;
+    if (r.photo && String(r.photo).trim() !== "") score += 10;
+    else score += 5;
+    if (r.status === "RESOLVED") score += 15;
+    score += 2 * (r.upvotes || 0);
+    if (r.verified === true) score += 20;
+    if (r.status === "FAKE" || r.status === "SPAM") score -= 20;
+    else if (r.status === "REJECTED") score -= 10;
+    if (!r.location || String(r.location).trim() === "") score -= 5;
+  }
+  return Math.max(0, score);
+}
 
 // ─── COMPONENTS ──────────────────────────────────────────────────────────────
 
@@ -100,11 +120,10 @@ function ProgressTracker({ step }) {
           nodeColor = "bg-[#22A06B] border-none";
           textColor = "text-charcoal";
         } else if (isWork && active) {
-          iconNode = <span>🔨</span>;
           nodeColor = "bg-white border-2 border-[#F4A261]";
           textColor = "text-[#F4A261]";
         } else if (isWork) {
-          iconNode = <span className="text-[10px]">🔨</span>;
+          // keep default iconNode (null) and colors
         } else if (isResolved && completed) {
           iconNode = (
             <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -163,6 +182,8 @@ export default function LokSetuApp() {
   const [user, setUser] = useState(null);
   const [toasts, setToasts] = useState([]);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const hasOpenedReportFromUrl = useRef(false);
 
   const showToast = (type, title, message) => {
     const id = Date.now();
@@ -182,13 +203,35 @@ export default function LokSetuApp() {
   useEffect(() => {
     fetchReports().then(setReportsData).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    const reportId = searchParams.get("reportId");
+    if (!reportId || hasOpenedReportFromUrl.current || reportsData.length === 0) return;
+    const rpt = reportsData.find(r => r.id === reportId);
+    if (rpt) {
+      setSelectedReport(rpt);
+      hasOpenedReportFromUrl.current = true;
+    }
+  }, [reportsData, searchParams]);
   const [activeFilter, setActiveFilter] = useState("All Issues");
   const [activeNav, setActiveNav] = useState("Community Feed");
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const sortDropdownRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("Sort: Recent First");
   const [locationName, setLocationName] = useState("Detecting location...");
   const [fullLocation, setFullLocation] = useState(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showTrustScoreInfo, setShowTrustScoreInfo] = useState(false);
+  const trustScoreInfoRef = useRef(null);
+  const trustScore = useMemo(() => calculateTrustScore(reportsData, user), [reportsData, user]);
+  const trustScoreProgress = useMemo(() => {
+    if (trustScore >= 850) return 100;
+    if (trustScore >= 600) return ((trustScore - 600) / (850 - 600)) * 100;
+    if (trustScore >= 300) return ((trustScore - 300) / (600 - 300)) * 100;
+    if (trustScore >= 100) return ((trustScore - 100) / (300 - 100)) * 100;
+    return (trustScore / 100) * 100;
+  }, [trustScore]);
 
   // File Report State
   const [showReportModal, setShowReportModal] = useState(false);
@@ -358,6 +401,26 @@ export default function LokSetuApp() {
     fetchLocation();
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target)) {
+        setSortDropdownOpen(false);
+      }
+    };
+    if (sortDropdownOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [sortDropdownOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (trustScoreInfoRef.current && !trustScoreInfoRef.current.contains(e.target)) {
+        setShowTrustScoreInfo(false);
+      }
+    };
+    if (showTrustScoreInfo) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showTrustScoreInfo]);
+
   const filteredReports = reportsData.filter(rpt => {
     // Nav Filter
     if (activeNav === "My Reports" && rpt.reporter !== (user?.displayName || user?.email)) return false;
@@ -392,7 +455,6 @@ export default function LokSetuApp() {
     { label: "Community Feed", icon: <Home className="w-5 h-5" />, badge: null },
     { label: "Issue Map", icon: <Map className="w-5 h-5" />, badge: null },
     { label: "My Reports", icon: <FileText className="w-5 h-5" />, badge: myReportsCount > 0 ? myReportsCount.toString() : null },
-    { label: "Analytics", icon: <BarChart2 className="w-5 h-5" />, badge: null },
   ];
 
   const filters = ["All Issues", "Submitted", "In Progress", "Resolved"];
@@ -406,7 +468,7 @@ export default function LokSetuApp() {
         {/* Logo Section */}
         <div className="px-6 mb-8">
           <p className="font-sora text-[#F4A261] text-[14px] font-[800] tracking-widest leading-none mb-1">
-            लोक से तु
+            लोक सेतु
           </p>
           <h1 className="font-sora text-white text-[32px] font-[800] tracking-[-0.5px] leading-none mb-1">
             LokSetu
@@ -445,7 +507,11 @@ export default function LokSetuApp() {
                     router.push("/login");
                     return;
                   }
-                  setActiveNav(item.label);
+                  if (item.label === "Issue Map") {
+                    setActiveNav("Issue Map");
+                    return;
+                  }
+                  setActiveNav(item.label.trim());
                 }}
                 className={`w-full flex items-center justify-between px-3 py-[10px] rounded-[10px] text-left transition-all ${isActive
                   ? "bg-[#145A5C] text-white"
@@ -471,19 +537,72 @@ export default function LokSetuApp() {
         {/* User Card */}
         <div className="px-4 mt-auto border-t border-white/5 pt-4">
           {user ? (
-            <div className="flex items-center gap-3 rounded-xl hover:bg-white/5 p-2 transition-colors cursor-pointer -mx-2">
-              <div className="w-10 h-10 rounded-full bg-[#F4A261] text-white font-[800] text-lg flex items-center justify-center shadow-inner shrink-0 font-sora">
-                {(user?.displayName?.[0] || user?.email?.[0] || "U").toUpperCase()}
+            <div ref={trustScoreInfoRef} className="relative">
+              <div className="flex items-center gap-3 rounded-xl hover:bg-white/5 p-2 transition-colors cursor-pointer -mx-2">
+                <div className="w-10 h-10 rounded-full bg-[#F4A261] text-white font-[800] text-lg flex items-center justify-center shadow-inner shrink-0 font-sora">
+                  {(user?.displayName?.[0] || user?.email?.[0] || "U").toUpperCase()}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <p className="font-sora text-white text-[14px] font-[800] truncate">{user?.displayName || user?.email || "User"}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); signOut(); }}
+                    className="font-sora text-[#F4A261] hover:text-[#fff] transition-colors text-[10px] font-[800] mt-1"
+                  >
+                    Sign Out
+                  </button>
+                  <div className="mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <span className="font-sora text-[#94A3B8] text-[10px] font-[600]">Trust Score: {trustScore}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowTrustScoreInfo(!showTrustScoreInfo); }}
+                        className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                        aria-label="Trust Score info"
+                      >
+                        <Info className="w-3 h-3 text-[#94A3B8]" />
+                      </button>
+                    </div>
+                    <div className="mt-1 h-1 w-full rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full rounded-full bg-[#1F7A7A] transition-all" style={{ width: `${Math.min(100, Math.max(0, trustScoreProgress))}%` }} />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="font-sora text-white text-[14px] font-[800] truncate">{user?.displayName || user?.email || "User"}</p>
-                <button
-                  onClick={(e) => { e.stopPropagation(); signOut(); }}
-                  className="font-sora text-[#F4A261] hover:text-[#fff] transition-colors text-[10px] font-[800] mt-1"
-                >
-                  Sign Out
-                </button>
-              </div>
+              {showTrustScoreInfo && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 w-[260px] bg-white rounded-[16px] shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-gray-100 z-50 text-left max-h-[320px] overflow-y-auto">
+                  <div className="p-5">
+                    <h3 className="font-sora text-[16px] font-[800] text-[#1E293B] tracking-tight mb-2">Trust Score</h3>
+                    <p className="font-sora text-[12px] text-[#64748B] font-[600] leading-relaxed mb-5">
+                      Trust Score reflects how reliable and helpful a citizen&apos;s reports are to the community.
+                    </p>
+
+                    <p className="font-sora text-[11px] font-[800] text-[#1E293B] uppercase tracking-wider mb-2">How you earn points</p>
+                    <ul className="font-sora text-[12px] text-[#1E293B] font-[600] space-y-2 mb-5">
+                      <li className="flex items-start gap-2"><span className="text-[#22A06B] font-[800] shrink-0">+10</span> Report submitted with photo</li>
+                      <li className="flex items-start gap-2"><span className="text-[#22A06B] font-[800] shrink-0">+5</span> Report submitted without photo</li>
+                      <li className="flex items-start gap-2"><span className="text-[#22A06B] font-[800] shrink-0">+15</span> Report resolved</li>
+                      <li className="flex items-start gap-2"><span className="text-[#22A06B] font-[800] shrink-0">+2</span> Someone upvotes your report</li>
+                      <li className="flex items-start gap-2"><span className="text-[#22A06B] font-[800] shrink-0">+20</span> Report verified by authorities</li>
+                    </ul>
+
+                    <p className="font-sora text-[11px] font-[800] text-[#1E293B] uppercase tracking-wider mb-2">Penalties</p>
+                    <ul className="font-sora text-[12px] text-[#1E293B] font-[600] space-y-2 mb-5">
+                      <li className="flex items-start gap-2"><span className="text-[#E63946] font-[800] shrink-0">-20</span> Report marked as fake or spam</li>
+                      <li className="flex items-start gap-2"><span className="text-[#E63946] font-[800] shrink-0">-10</span> Report rejected by authorities</li>
+                      <li className="flex items-start gap-2"><span className="text-[#E63946] font-[800] shrink-0">-5</span> Report submitted without location</li>
+                    </ul>
+
+                    <p className="font-sora text-[11px] font-[800] text-[#1E293B] uppercase tracking-wider mb-2">Trust Levels</p>
+                    <div className="space-y-1.5">
+                      <div className="font-sora text-[12px] font-[600] text-[#1E293B] py-1.5 px-2.5 rounded-lg bg-[#F1F5F9] border border-gray-100">New Member (0–99)</div>
+                      <div className="font-sora text-[12px] font-[600] text-[#1E293B] py-1.5 px-2.5 rounded-lg bg-[#F0FDF4] border border-[#bbf7d0]">Active Citizen (100–299)</div>
+                      <div className="font-sora text-[12px] font-[600] text-[#1E293B] py-1.5 px-2.5 rounded-lg bg-[#E8F3F3] border border-[#99D4D4]">Trusted Reporter (300–599)</div>
+                      <div className="font-sora text-[12px] font-[600] text-[#1E293B] py-1.5 px-2.5 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE]">Community Leader (600–849)</div>
+                      <div className="font-sora text-[12px] font-[600] text-[#1E293B] py-1.5 px-2.5 rounded-lg bg-[#F5F9F9] border border-[#1F7A7A]/30">Elite Reporter (850+)</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div
@@ -590,14 +709,34 @@ export default function LokSetuApp() {
                 ))}
               </div>
 
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="font-sora h-10 px-4 bg-white border border-gray-200 text-[#1E293B] text-[13px] font-[700] rounded-lg shadow-sm outline-none w-[180px] appearance-none cursor-pointer"
-              >
-                <option>Sort: Recent First</option>
-                <option>Sort: Most Upvoted</option>
-              </select>
+              <div ref={sortDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                  className="font-sora h-10 px-4 bg-white border border-gray-200 text-[#1E293B] text-[13px] font-[700] rounded-lg shadow-sm outline-none min-w-[180px] cursor-pointer focus:ring-0 focus:outline-none focus:border-[#1F7A7A] hover:border-[#1F7A7A] flex items-center justify-between whitespace-nowrap"
+                >
+                  {sortBy}
+                  <ChevronDown className="w-4 h-4 shrink-0 ml-1" />
+                </button>
+                {sortDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => { setSortBy("Sort: Recent First"); setSortDropdownOpen(false); }}
+                      className="font-sora w-full px-4 py-2.5 text-left text-[13px] font-[700] text-[#1E293B] hover:bg-[#1F7A7A] hover:text-white transition-colors bg-white"
+                    >
+                      Sort: Recent First
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSortBy("Sort: Most Upvoted"); setSortDropdownOpen(false); }}
+                      className="font-sora w-full px-4 py-2.5 text-left text-[13px] font-[700] text-[#1E293B] hover:bg-[#1F7A7A] hover:text-white transition-colors bg-white"
+                    >
+                      Sort: Most Upvoted
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Feed List */}
@@ -671,7 +810,7 @@ export default function LokSetuApp() {
                             showToast("warning", "Sign In Required", "Please sign in to upvote reports");
                             return;
                           }
-                          upvoteReport(rpt.id, false).then(() => fetchReports().then(setReportsData)).catch(console.error);
+                          upvoteReport(rpt.id, user.uid).then(() => fetchReports().then(setReportsData)).catch(console.error);
                         }}
                         className="font-sora flex items-center gap-2 bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-gray-200 rounded-full px-4 py-1.5 text-[13px] font-[800] text-[#1E293B] transition-colors"
                       >
@@ -680,7 +819,8 @@ export default function LokSetuApp() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigator.clipboard.writeText(window.location.href);
+                          const shareUrl = `${window.location.origin}?reportId=${rpt.id}`;
+                          navigator.clipboard.writeText(shareUrl);
                           showToast("info", "Link Copied!", "Report link copied to clipboard");
                         }}
                         className="font-sora flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-full px-4 py-1.5 text-[13px] font-[800] text-[#1E293B] transition-colors"
@@ -700,7 +840,7 @@ export default function LokSetuApp() {
 
         {/* Issue Map UI Placeholder */}
         {activeNav === "Issue Map" && (
-          <div className="flex-1 p-8 bg-[#f5f9f9] flex flex-col relative w-full h-full overflow-hidden">
+          <div id="issue-map" className="flex-1 p-8 bg-[#f5f9f9] flex flex-col relative w-full h-full overflow-hidden">
             <IssueMap
               reportsData={reportsData}
               userLocation={fullLocation}
@@ -765,17 +905,24 @@ export default function LokSetuApp() {
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto no-scrollbar py-6 px-6">
 
-          {/* Map Card */}
+          {/* Map Card - click to open full Issue Map */}
           <div className="mb-8">
             <h3 className="font-sora text-[11px] font-[800] text-[#1E293B] tracking-widest uppercase flex items-center gap-2 mb-4">
               <MapPin className="w-3.5 h-3.5 text-[#E63946]" /> ISSUE MAP — {locationName.split(',')[0].toUpperCase()}
             </h3>
-            <div className="w-full h-[180px] bg-[#D1E6E2] rounded-[16px] relative overflow-hidden mb-3">
+            <div
+              className="w-full h-[180px] bg-[#D1E6E2] rounded-[16px] relative overflow-hidden mb-3 cursor-pointer"
+              onClick={() => setActiveNav("Issue Map")}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && setActiveNav("Issue Map")}
+              aria-label="Open full Issue Map"
+            >
               <IssueMap
                 reportsData={reportsData.slice(0, 4)}
                 userLocation={fullLocation}
                 onReportClick={(rpt) => setSelectedReport(rpt)}
-                className="w-full h-full rounded-[16px]"
+                className="w-full h-full rounded-[16px] pointer-events-none"
               />
 
               {/* Map overlay pill */}
@@ -799,15 +946,14 @@ export default function LokSetuApp() {
 
             <div className="space-y-4">
               {[
-                { id: 1, label: "Potholes", count: 52, icon: "🚗", color: "bg-[#E63946]", width: "80%" },
-                { id: 2, label: "Streetlights", count: 38, icon: "💡", color: "bg-[#F4A261]", width: "65%" },
-                { id: 3, label: "Waterlogging", count: 29, icon: "💧", color: "bg-[#3B82F6]", width: "45%" },
-                { id: 4, label: "Garbage", count: 23, icon: "🗑️", color: "bg-[#22A06B]", width: "35%" },
+                { id: 1, label: "Potholes", count: 52, icon: "", color: "bg-[#E63946]", width: "80%" },
+                { id: 2, label: "Streetlights", count: 38, icon: "", color: "bg-[#F4A261]", width: "65%" },
+                { id: 3, label: "Waterlogging", count: 29, icon: "", color: "bg-[#3B82F6]", width: "45%" },
+                { id: 4, label: "Garbage", count: 23, icon: "", color: "bg-[#22A06B]", width: "35%" },
               ].map(item => (
                 <div key={item.id}>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="font-sora flex items-center gap-2 text-[12px] font-[800] text-[#1E293B]">
-                      <span className="bg-gray-50 p-1.5 rounded text-sm leading-none border border-gray-100 flex items-center justify-center w-7 h-7">{item.icon}</span>
                       {item.label}
                     </div>
                     <span className="font-sora text-[12px] font-[800] text-[#64748B]">{item.count}</span>
@@ -982,18 +1128,17 @@ export default function LokSetuApp() {
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { id: 'Pothole', icon: '🚗', label: 'Pothole' },
-                      { id: 'Broken Streetlight', icon: '💡', label: 'Broken Streetlight' },
-                      { id: 'Garbage', icon: '🗑️', label: 'Garbage' },
-                      { id: 'Water Logging', icon: '💧', label: 'Water Logging' },
-                      { id: 'Other', icon: '📝', label: 'Other / Specify Below' }
+                      { id: 'Pothole', icon: '', label: 'Pothole' },
+                      { id: 'Broken Streetlight', icon: '', label: 'Broken Streetlight' },
+                      { id: 'Garbage', icon: '', label: 'Garbage' },
+                      { id: 'Water Logging', icon: '', label: 'Water Logging' },
+                      { id: 'Other', icon: '', label: 'Other / Specify Below' }
                     ].map(type => (
                       <button
                         key={type.id}
                         onClick={() => setReportIssueType(type.id)}
                         className={`font-sora flex flex-col items-center justify-center p-4 rounded-[12px] border ${reportIssueType === type.id ? 'border-[#1F7A7A] bg-[#F5F9F9] shadow-[0_0_0_1px_rgba(31,122,122,0.1)]' : 'border-gray-200 hover:border-gray-300 bg-white'} transition-all ${type.id === 'Other' ? 'col-span-2' : ''}`}
                       >
-                        <span className="text-[22px] mb-2">{type.icon}</span>
                         <span className="text-[13px] font-[700] text-[#1E293B] leading-none">{type.label}</span>
                       </button>
                     ))}
@@ -1128,7 +1273,7 @@ export default function LokSetuApp() {
                           setReportDescription("");
                           setReportPhoto(null);
                           setActiveNav("My Reports");
-                          showToast("success", "Report Submitted! 🎉", "Your report is now live. You'll be notified as it progresses.");
+                          showToast("success", "Report Submitted!", "Your report is now live. You'll be notified as it progresses.");
                         } catch (err) {
                           console.error(err);
                           showToast("error", "Something went wrong", "Failed to submit report. Please try again in a moment.");
@@ -1208,7 +1353,22 @@ export default function LokSetuApp() {
                       )}
                     </div>
                     <h4 className="font-sora text-[14px] font-[800] text-[#1E293B]">Report Filed</h4>
-                    <p className="font-sora text-[12px] font-[600] text-[#64748B] mb-2">15 Oct 2024 · 4:30 PM</p>
+                    <p className="font-sora text-[12px] font-[600] text-[#64748B] mb-2">
+                      {selectedReport.createdAt && typeof selectedReport.createdAt.toDate === "function"
+                        ? (() => {
+                            const d = selectedReport.createdAt.toDate();
+                            const day = d.getDate();
+                            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                            const month = months[d.getMonth()];
+                            const year = d.getFullYear();
+                            let hours = d.getHours();
+                            const minutes = d.getMinutes().toString().padStart(2, "0");
+                            const ampm = hours >= 12 ? "PM" : "AM";
+                            hours = hours % 12 || 12;
+                            return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+                          })()
+                        : "Report time unavailable"}
+                    </p>
                     <div className="bg-white border text-[13px] border-[#E2E8F0] rounded-[8px] p-3 text-[#1E293B] shadow-sm font-sora font-[600]">
                       Submitted by {selectedReport.reporter} with photo evidence.
                     </div>
@@ -1289,7 +1449,7 @@ export default function LokSetuApp() {
                       showToast("warning", "Sign In Required", "Please sign in to upvote reports");
                       return;
                     }
-                    upvoteReport(selectedReport.id, false).then(() => fetchReports().then(data => {
+                    upvoteReport(selectedReport.id, user.uid).then(() => fetchReports().then(data => {
                       setReportsData(data);
                       const updated = data.find(r => r.id === selectedReport.id);
                       if (updated) setSelectedReport(updated);
@@ -1302,7 +1462,8 @@ export default function LokSetuApp() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigator.clipboard.writeText(window.location.href);
+                    const shareUrl = `${window.location.origin}?reportId=${selectedReport.id}`;
+                    navigator.clipboard.writeText(shareUrl);
                     showToast("info", "Link Copied!", "Report link copied to clipboard");
                   }}
                   className="font-sora flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border-2 border-[#1F7A7A] text-[#1F7A7A] rounded-full px-4 py-3.5 text-[15px] font-[800] shadow-[0_4px_12px_rgba(31,122,122,0.1)] transition-colors"
