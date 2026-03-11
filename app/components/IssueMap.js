@@ -16,10 +16,12 @@ L.Icon.Default.mergeOptions({
 // Create custom colored icons based on status
 const createCustomIcon = (status, emoji) => {
     const color = status === 'RESOLVED' ? '#22A06B' : status === 'IN PROGRESS' ? '#F4A261' : '#E63946';
+    const isUrl = emoji && emoji.startsWith('http');
+    const content = isUrl ? `<img src="${emoji}" style="width: 16px; height: 16px; object-fit: contain;" />` : emoji;
 
     return L.divIcon({
         className: 'custom-div-icon',
-        html: `<div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); display: flex; align-items: center; justify-content: center; font-size: 14px; position: relative; z-index: 10;">${emoji}</div>`,
+        html: `<div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); display: flex; align-items: center; justify-content: center; font-size: 14px; position: relative; z-index: 10;">${content}</div>`,
         iconSize: [28, 28],
         iconAnchor: [14, 14]
     });
@@ -97,7 +99,9 @@ export default function IssueMap({ reportsData, userLocation, onReportClick, cla
                         >
                             <Popup className="font-sora">
                                 <div className="flex flex-col gap-1 p-1">
-                                    <span className="font-[800] text-[14px] text-[#1E293B] flex items-center gap-1">{report.icon} {report.title.substring(0, 25)}...</span>
+                                    <span className="font-[800] text-[14px] text-[#1E293B] flex items-center gap-1">
+                                        {report.icon && report.icon.startsWith('http') ? <img src={report.icon} style={{ width: 16, height: 16, objectFit: 'contain' }} alt="icon" /> : report.icon} {report.title.substring(0, 25)}...
+                                    </span>
                                     <span className="text-[12px] text-[#64748B] mb-1">{report.location}</span>
                                     <div className="flex items-center justify-between">
                                         <span className={`text-[10px] uppercase font-[800] tracking-wider px-2 py-0.5 rounded ${report.status === 'RESOLVED' ? 'bg-[#F0FDF4] text-[#22A06B]' : report.status === 'IN PROGRESS' ? 'bg-[#FFF7ED] text-[#F4A261]' : 'bg-[#EFF6FF] text-[#3B82F6]'}`}>

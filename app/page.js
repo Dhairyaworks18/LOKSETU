@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { fetchReports, submitReport, upvoteReport } from "../lib/firebaseHelpers";
+import { fetchReports, submitReport, upvoteReport, deleteReport } from "../lib/firebaseHelpers";
 import { onAuthChange, signOut } from "../lib/authHelpers";
-import { Search, Heart, Share, MapPin, Map, Home, FileText, BarChart2, MoreHorizontal, Camera, X, ChevronDown, Info } from "lucide-react";
+import { Search, Heart, Share, MapPin, Map, Home, FileText, BarChart2, MoreHorizontal, Camera, X, ChevronDown, Info, Trash2 } from "lucide-react";
 import { ToastContainer } from "./components/Toast";
 
 const IssueMap = dynamic(() => import("./components/IssueMap"), {
@@ -175,6 +175,22 @@ function ProgressTracker({ step }) {
   );
 }
 
+// ─── HAVERSINE DISTANCE UTILITY ─────────────────────────────────────────────
+// Returns the distance in metres between two GPS coordinates.
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000; // Earth radius in metres
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const DUPLICATE_RADIUS_METRES = 150; // flag duplicates within 150 m
+
 // ─── MAIN APP PAGE ───────────────────────────────────────────────────────────
 export default function LokSetuApp() {
   const [reportsData, setReportsData] = useState([]);
@@ -221,6 +237,7 @@ export default function LokSetuApp() {
   const [sortBy, setSortBy] = useState("Sort: Recent First");
   const [locationName, setLocationName] = useState("Detecting location...");
   const [fullLocation, setFullLocation] = useState(null);
+  const [userCoords, setUserCoords] = useState(null); // { lat, lng } — real GPS fix
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTrustScoreInfo, setShowTrustScoreInfo] = useState(false);
   const trustScoreInfoRef = useRef(null);
@@ -233,11 +250,24 @@ export default function LokSetuApp() {
     return (trustScore / 100) * 100;
   }, [trustScore]);
 
+  // Set of report IDs the current user has upvoted — derived from Firestore data
+  const userUpvotedIds = useMemo(() => {
+    if (!user) return new Set();
+    return new Set(
+      reportsData
+        .filter(r => Array.isArray(r.upvotedBy) && r.upvotedBy.includes(user.uid))
+        .map(r => r.id)
+    );
+  }, [reportsData, user]);
+
   // File Report State
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportIssueType, setReportIssueType] = useState("");
   const [reportTitle, setReportTitle] = useState("");
   const [reportDescription, setReportDescription] = useState("");
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // holds the report object to delete
+  const [submitting, setSubmitting] = useState(false); // tracks report submission in progress
   const [reportPhoto, setReportPhoto] = useState(null);
 
   useEffect(() => {
@@ -247,6 +277,8 @@ export default function LokSetuApp() {
           async (position) => {
             try {
               const { latitude, longitude } = position.coords;
+              // Save raw coordinates for duplicate detection & report submission
+              setUserCoords({ lat: latitude, lng: longitude });
               // Using OpenStreetMap's free Nominatim reverse geocoding API
               const response = await fetch(
                 `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
@@ -759,8 +791,8 @@ export default function LokSetuApp() {
 
                   {/* Header */}
                   <div className="p-5 pb-4 flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-[12px] bg-gray-50 border border-gray-100 flex items-center justify-center text-2xl shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-                      {rpt.icon}
+                    <div className="w-12 h-12 rounded-[12px] bg-gray-50 border border-gray-100 flex items-center justify-center text-2xl shrink-0 shadow-inner group-hover:scale-110 transition-transform overflow-hidden">
+                      {typeof rpt.icon === 'string' && rpt.icon.startsWith('http') ? <img src={rpt.icon} alt="icon" className="w-8 h-8 object-contain drop-shadow-sm" /> : rpt.icon}
                     </div>
                     <div className="flex-1 pt-0.5">
                       <div className="flex items-center justify-between mb-0.5">
@@ -780,7 +812,9 @@ export default function LokSetuApp() {
                     <div className="absolute inset-0 opacity-10" style={{
                       backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 19px, #0B2F30 19px, #0B2F30 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #0B2F30 19px, #0B2F30 20px)`
                     }} />
-                    <div className="text-4xl filter drop-shadow-md z-10 animate-pulse">{rpt.icon}</div>
+                    <div className="text-4xl filter drop-shadow-md z-10 animate-pulse">
+                      {typeof rpt.icon === 'string' && rpt.icon.startsWith('http') ? <img src={rpt.icon} alt="icon" className="w-12 h-12 object-contain drop-shadow-lg" /> : rpt.icon}
+                    </div>
                   </div>
 
                   {/* Content Body */}
@@ -810,11 +844,21 @@ export default function LokSetuApp() {
                             showToast("warning", "Sign In Required", "Please sign in to upvote reports");
                             return;
                           }
-                          upvoteReport(rpt.id, user.uid).then(() => fetchReports().then(setReportsData)).catch(console.error);
+                          const hasUpvoted = userUpvotedIds.has(rpt.id);
+                          upvoteReport(rpt.id, user.uid)
+                            .then(() => fetchReports().then(setReportsData))
+                            .then(() => {
+                              if (!hasUpvoted) showToast("success", "Upvoted!", "Your upvote has been added.");
+                              else showToast("info", "Upvote Removed", "Your upvote has been removed.");
+                            })
+                            .catch(console.error);
                         }}
-                        className="font-sora flex items-center gap-2 bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-gray-200 rounded-full px-4 py-1.5 text-[13px] font-[800] text-[#1E293B] transition-colors"
+                        className={`font-sora flex items-center gap-2 border rounded-full px-4 py-1.5 text-[13px] font-[800] transition-all ${userUpvotedIds.has(rpt.id)
+                          ? "bg-[#1F7A7A] border-[#1F7A7A] text-white shadow-md scale-[1.02]"
+                          : "bg-[#F1F5F9] hover:bg-[#E2E8F0] border-gray-200 text-[#1E293B]"
+                          }`}
                       >
-                        <Heart className="w-4 h-4 fill-[#1F7A7A] text-[#1F7A7A]" /> {rpt.upvotes}
+                        <Heart className={`w-4 h-4 transition-all ${userUpvotedIds.has(rpt.id) ? "fill-white text-white" : "fill-[#1F7A7A] text-[#1F7A7A]"}`} /> {rpt.upvotes}
                       </button>
                       <button
                         onClick={(e) => {
@@ -827,6 +871,18 @@ export default function LokSetuApp() {
                       >
                         <Share className="w-4 h-4 text-[#64748B]" /> Share
                       </button>
+                      {/* Delete button — only shown in My Reports for the owner */}
+                      {activeNav === "My Reports" && user && (rpt.userId === user.uid || rpt.reporter === (user.displayName || user.email)) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirm(rpt);
+                          }}
+                          className="font-sora flex items-center gap-2 bg-[#FEF2F2] hover:bg-[#FEE2E2] border border-[#FECACA] text-[#E63946] rounded-full px-4 py-1.5 text-[13px] font-[800] transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" /> Delete
+                        </button>
+                      )}
                     </div>
                     <button className="font-sora text-[12px] font-[700] text-[#64748B] hover:text-[#1E293B] transition-colors flex items-center gap-1">
                       Click for full details →
@@ -1128,17 +1184,18 @@ export default function LokSetuApp() {
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { id: 'Pothole', icon: '', label: 'Pothole' },
-                      { id: 'Broken Streetlight', icon: '', label: 'Broken Streetlight' },
-                      { id: 'Garbage', icon: '', label: 'Garbage' },
-                      { id: 'Water Logging', icon: '', label: 'Water Logging' },
-                      { id: 'Other', icon: '', label: 'Other / Specify Below' }
+                      { id: 'Pothole', icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Hole.png', label: 'Pothole' },
+                      { id: 'Broken Streetlight', icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Light%20Bulb.png', label: 'Broken Streetlight' },
+                      { id: 'Garbage', icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Wastebasket.png', label: 'Garbage' },
+                      { id: 'Water Logging', icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Droplet.png', label: 'Water Logging' },
+                      { id: 'Other', icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Memo.png', label: 'Other / Specify Below' }
                     ].map(type => (
                       <button
                         key={type.id}
                         onClick={() => setReportIssueType(type.id)}
                         className={`font-sora flex flex-col items-center justify-center p-4 rounded-[12px] border ${reportIssueType === type.id ? 'border-[#1F7A7A] bg-[#F5F9F9] shadow-[0_0_0_1px_rgba(31,122,122,0.1)]' : 'border-gray-200 hover:border-gray-300 bg-white'} transition-all ${type.id === 'Other' ? 'col-span-2' : ''}`}
                       >
+                        <img src={type.icon} alt={type.label} className="w-8 h-8 object-contain mb-2 drop-shadow-sm" />
                         <span className="text-[13px] font-[700] text-[#1E293B] leading-none">{type.label}</span>
                       </button>
                     ))}
@@ -1232,21 +1289,31 @@ export default function LokSetuApp() {
                       return;
                     }
 
-                    // Duplicate Detection Logic 
-                    // In a real app, this would use geospatial querying (e.g. PostGIS) to find issues within a 50m radius.
-                    // For the demo, we check if the issue type matches any existing report AND if the user's city matches the report's city.
-                    const userCity = locationName.split(',')[0].trim().toLowerCase();
-                    const duplicateReport = reportsData.find(r => {
-                      const isSameType = r.type.toLowerCase() === reportIssueType.toLowerCase() || r.title.toLowerCase().includes(reportTitle.toLowerCase());
-                      // Demo fallback: if city isn't Bokaro, we still mock a match for demo purposes if the type matches.
-                      const isSameArea = r.city.toLowerCase() === userCity || r.location.toLowerCase().includes(userCity) || true;
-                      return isSameType && isSameArea;
-                    });
+                    // ── Geospatial Duplicate Detection (Haversine) ──────────
+                    // Only flag as duplicate if:
+                    //   1. We have the user's GPS coords.
+                    //   2. The existing report has GPS coords stored.
+                    //   3. They share the same issue type.
+                    //   4. They are within DUPLICATE_RADIUS_METRES of each other.
+                    let duplicateReport = null;
+                    if (userCoords) {
+                      duplicateReport = reportsData.find(r => {
+                        if (!r.lat || !r.lng) return false; // skip legacy reports with no coords
+                        const isSameType = r.type.toLowerCase() === reportIssueType.toLowerCase();
+                        if (!isSameType) return false;
+                        const dist = haversineDistance(userCoords.lat, userCoords.lng, r.lat, r.lng);
+                        return dist <= DUPLICATE_RADIUS_METRES;
+                      });
+                    }
 
                     if (duplicateReport) {
-                      showToast("warning", "Issue Already Reported!", `A "${duplicateReport.type}" was already reported in your area. Upvote the existing report to escalate it!`);
+                      showToast("warning", "Issue Already Reported Nearby!", `A "${duplicateReport.type}" report already exists within ${DUPLICATE_RADIUS_METRES}m of your location. Please upvote it to escalate!`);
+                      setShowReportModal(false);
+                      setActiveNav("Community Feed");
+                      setSelectedReport(duplicateReport);
                     } else {
                       (async () => {
+                        setSubmitting(true);
                         try {
                           let fileToUpload = null;
                           if (reportPhoto) {
@@ -1261,12 +1328,13 @@ export default function LokSetuApp() {
                             reporter: user?.displayName || user?.email || "Anonymous",
                             userId: user?.uid,
                             is_anonymous: false,
-                            emoji: reportIssueType === 'Pothole' ? '🚗' : reportIssueType === 'Broken Streetlight' ? '💡' : reportIssueType === 'Garbage' ? '🗑️' : reportIssueType === 'Water Logging' ? '💧' : '📝',
-                            photoFile: fileToUpload
+                            emoji: reportIssueType === 'Pothole' ? 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Hole.png' : reportIssueType === 'Broken Streetlight' ? 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Light%20Bulb.png' : reportIssueType === 'Garbage' ? 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Wastebasket.png' : reportIssueType === 'Water Logging' ? 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Droplet.png' : 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Memo.png',
+                            photoFile: fileToUpload,
+                            lat: userCoords?.lat ?? null,
+                            lng: userCoords?.lng ?? null
                           });
                           const updated = await fetchReports();
                           setReportsData(updated);
-
                           setShowReportModal(false);
                           setReportIssueType("");
                           setReportTitle("");
@@ -1275,15 +1343,34 @@ export default function LokSetuApp() {
                           setActiveNav("My Reports");
                           showToast("success", "Report Submitted!", "Your report is now live. You'll be notified as it progresses.");
                         } catch (err) {
-                          console.error(err);
-                          showToast("error", "Something went wrong", "Failed to submit report. Please try again in a moment.");
+                          console.error("[submitReport] error:", err?.code, err?.message, err);
+                          const msg = err?.code === 'permission-denied'
+                            ? "Permission denied. Please make sure you're signed in."
+                            : err?.code === 'storage/unauthorized'
+                              ? "Photo upload failed — storage permission denied."
+                              : err?.message || "Failed to submit report. Please try again.";
+                          showToast("error", "Submission Failed", msg);
+                        } finally {
+                          setSubmitting(false);
                         }
                       })();
                     }
                   }}
-                  className="font-sora w-full h-[52px] bg-[#F4A261] hover:bg-[#E8924F] text-white rounded-[12px] text-[15px] font-[800] shadow-md hover:shadow-lg transition-all"
+                  disabled={submitting}
+                  className={`font-sora w-full h-[52px] rounded-[12px] text-[15px] font-[800] shadow-md transition-all flex items-center justify-center gap-2 ${submitting
+                      ? "bg-[#F4A261]/60 text-white cursor-not-allowed"
+                      : "bg-[#F4A261] hover:bg-[#E8924F] text-white hover:shadow-lg"
+                    }`}
                 >
-                  Submit Report
+                  {submitting ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Submitting...
+                    </>
+                  ) : "Submit Report"}
                 </button>
               </div>
             </div>
@@ -1305,7 +1392,7 @@ export default function LokSetuApp() {
               {/* Header */}
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-sora text-[20px] font-[800] text-[#1E293B] tracking-[-0.5px] flex items-center gap-2">
-                  <span className="text-xl leading-none">{selectedReport.icon}</span> Report Detail
+                  <span className="text-xl leading-none">{typeof selectedReport.icon === 'string' && selectedReport.icon.startsWith('http') ? <img src={selectedReport.icon} alt="icon" className="w-6 h-6 object-contain" /> : selectedReport.icon}</span> Report Detail
                 </h3>
                 <button
                   onClick={() => setSelectedReport(null)}
@@ -1356,17 +1443,17 @@ export default function LokSetuApp() {
                     <p className="font-sora text-[12px] font-[600] text-[#64748B] mb-2">
                       {selectedReport.createdAt && typeof selectedReport.createdAt.toDate === "function"
                         ? (() => {
-                            const d = selectedReport.createdAt.toDate();
-                            const day = d.getDate();
-                            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                            const month = months[d.getMonth()];
-                            const year = d.getFullYear();
-                            let hours = d.getHours();
-                            const minutes = d.getMinutes().toString().padStart(2, "0");
-                            const ampm = hours >= 12 ? "PM" : "AM";
-                            hours = hours % 12 || 12;
-                            return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
-                          })()
+                          const d = selectedReport.createdAt.toDate();
+                          const day = d.getDate();
+                          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                          const month = months[d.getMonth()];
+                          const year = d.getFullYear();
+                          let hours = d.getHours();
+                          const minutes = d.getMinutes().toString().padStart(2, "0");
+                          const ampm = hours >= 12 ? "PM" : "AM";
+                          hours = hours % 12 || 12;
+                          return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+                        })()
                         : "Report time unavailable"}
                     </p>
                     <div className="bg-white border text-[13px] border-[#E2E8F0] rounded-[8px] p-3 text-[#1E293B] shadow-sm font-sora font-[600]">
@@ -1449,15 +1536,23 @@ export default function LokSetuApp() {
                       showToast("warning", "Sign In Required", "Please sign in to upvote reports");
                       return;
                     }
+                    const hasUpvoted = userUpvotedIds.has(selectedReport.id);
                     upvoteReport(selectedReport.id, user.uid).then(() => fetchReports().then(data => {
                       setReportsData(data);
                       const updated = data.find(r => r.id === selectedReport.id);
                       if (updated) setSelectedReport(updated);
-                    })).catch(console.error);
+                    })).then(() => {
+                      if (!hasUpvoted) showToast("success", "Upvoted!", "Your upvote has been added.");
+                      else showToast("info", "Upvote Removed", "Your upvote has been removed.");
+                    }).catch(console.error);
                   }}
-                  className="font-sora flex-1 flex items-center justify-center gap-2 bg-[#F5F9F9] hover:bg-[#E8F3F3] text-[#1F7A7A] rounded-full px-4 py-3.5 text-[15px] font-[800] transition-colors"
+                  className={`font-sora flex-1 flex items-center justify-center gap-2 rounded-full px-4 py-3.5 text-[15px] font-[800] transition-all ${userUpvotedIds.has(selectedReport.id)
+                    ? "bg-[#1F7A7A] text-white shadow-md"
+                    : "bg-[#F5F9F9] hover:bg-[#E8F3F3] text-[#1F7A7A]"
+                    }`}
                 >
-                  <Heart className="w-4 h-4 fill-[#1F7A7A]" /> Upvote ({selectedReport.upvotes})
+                  <Heart className={`w-4 h-4 transition-all ${userUpvotedIds.has(selectedReport.id) ? "fill-white text-white" : "fill-[#1F7A7A]"}`} />
+                  {userUpvotedIds.has(selectedReport.id) ? "Upvoted" : "Upvote"} ({selectedReport.upvotes})
                 </button>
                 <button
                   onClick={(e) => {
@@ -1470,11 +1565,80 @@ export default function LokSetuApp() {
                 >
                   <Share className="w-4 h-4" /> Share Report
                 </button>
+                {/* Delete button in detail modal — only for the owner */}
+                {user && (selectedReport.userId === user.uid || selectedReport.reporter === (user.displayName || user.email)) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirm(selectedReport);
+                    }}
+                    className="font-sora flex items-center justify-center gap-2 bg-[#FEF2F2] hover:bg-[#FEE2E2] border-2 border-[#FECACA] text-[#E63946] rounded-full px-5 py-3.5 text-[15px] font-[800] transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </button>
+                )}
               </div>
             </div>
           </div>
         )
       }
+
+      {/* ── DELETE CONFIRMATION MODAL ─────────────────────────────── */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
+          onClick={() => setDeleteConfirm(null)}
+        >
+          <div
+            className="bg-white rounded-[20px] shadow-2xl max-w-sm w-full p-7 modal-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <div className="w-14 h-14 rounded-full bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center mx-auto mb-5">
+              <Trash2 className="w-6 h-6 text-[#E63946]" />
+            </div>
+
+            <h3 className="font-sora text-[20px] font-[800] text-[#1E293B] text-center tracking-tight mb-2">
+              Delete Report?
+            </h3>
+            <p className="font-sora text-[13px] text-[#64748B] font-[600] text-center leading-relaxed mb-1">
+              You are about to permanently delete:
+            </p>
+            <p className="font-sora text-[14px] font-[800] text-[#1E293B] text-center mb-6 truncate px-2">
+              &ldquo;{deleteConfirm.title}&rdquo;
+            </p>
+            <p className="font-sora text-[12px] text-[#E63946] font-[700] text-center mb-7">
+              This action cannot be undone.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="font-sora flex-1 py-3 rounded-full border-2 border-gray-200 bg-white text-[#1E293B] text-[14px] font-[800] hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const rptToDelete = deleteConfirm;
+                  setDeleteConfirm(null);
+                  deleteReport(rptToDelete.id, user.uid)
+                    .then(() => {
+                      // Close detail modal if the deleted report is open
+                      if (selectedReport?.id === rptToDelete.id) setSelectedReport(null);
+                      return fetchReports().then(setReportsData);
+                    })
+                    .then(() => showToast("success", "Report Deleted", `"${rptToDelete.title}" has been removed.`))
+                    .catch((err) => showToast("error", "Delete Failed", err.message || "Could not delete the report."));
+                }}
+                className="font-sora flex-1 py-3 rounded-full bg-[#E63946] hover:bg-[#C0303C] text-white text-[14px] font-[800] transition-colors shadow-md flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" /> Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
