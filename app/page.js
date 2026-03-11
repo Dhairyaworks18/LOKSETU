@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchReports, submitReport, upvoteReport, deleteReport } from "../lib/firebaseHelpers";
@@ -192,7 +192,7 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
 const DUPLICATE_RADIUS_METRES = 150; // flag duplicates within 150 m
 
 // ─── MAIN APP PAGE ───────────────────────────────────────────────────────────
-export default function LokSetuApp() {
+function LokSetuApp() {
   const [reportsData, setReportsData] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
   const [user, setUser] = useState(null);
@@ -779,7 +779,7 @@ export default function LokSetuApp() {
                     <Search className="w-6 h-6 text-gray-400" />
                   </div>
                   <h3 className="font-sora text-[16px] font-[800] text-[#1E293B] mb-1">No reports found</h3>
-                  <p className="font-sora text-[13px] text-[#64748B] font-[600]">Try adjusting your search or filters to find what you're looking for.</p>
+                  <p className="font-sora text-[13px] text-[#64748B] font-[600]">Try adjusting your search or filters to find what you&apos;re looking for.</p>
                 </div>
               )}
               {filteredReports.map(rpt => (
@@ -1642,5 +1642,13 @@ export default function LokSetuApp() {
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="h-screen w-full bg-[#F5F1EA] flex items-center justify-center font-sora text-[#0F3D3E] font-[800]">Loading LokSetu...</div>}>
+      <LokSetuApp />
+    </Suspense>
   );
 }
