@@ -241,6 +241,7 @@ function LokSetuApp() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTrustScoreInfo, setShowTrustScoreInfo] = useState(false);
   const trustScoreInfoRef = useRef(null);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const trustScore = useMemo(() => calculateTrustScore(reportsData, user), [reportsData, user]);
   const trustScoreProgress = useMemo(() => {
     if (trustScore >= 850) return 100;
@@ -492,10 +493,26 @@ function LokSetuApp() {
   const filters = ["All Issues", "Submitted", "In Progress", "Resolved"];
 
   return (
-    <div className="flex h-screen w-full bg-[#F5F1EA] font-sora overflow-hidden text-[#1E293B]">
+    <div className="flex h-screen w-full bg-[#F5F1EA] font-sora overflow-hidden text-[#1E293B] relative">
+
+      {/* ── MOBILE DRAWER OVERLAY ──────────────────────────────── */}
+      {mobileDrawerOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMobileDrawerOpen(false)}
+        />
+      )}
 
       {/* ── LEFT SIDEBAR ─────────────────────────────────────────── */}
-      <aside className="w-[260px] shrink-0 h-full bg-[#0F3D3E] flex flex-col items-stretch pt-6 pb-6 shadow-xl z-20">
+      <aside className={`
+        fixed md:relative
+        top-0 left-0 h-full
+        w-[260px] shrink-0
+        bg-[#0F3D3E] flex flex-col items-stretch pt-6 pb-6 shadow-xl
+        z-50 md:z-20
+        transition-transform duration-300 ease-in-out
+        ${mobileDrawerOpen ? 'translate-x-0 drawer-slide-in' : '-translate-x-full md:translate-x-0'}
+      `}>
 
         {/* Logo Section */}
         <div className="px-6 mb-8">
@@ -519,6 +536,7 @@ function LokSetuApp() {
                 return;
               }
               setShowReportModal(true);
+              setMobileDrawerOpen(false);
             }}
             className="font-sora w-full bg-[#F4A261] hover:bg-[#E8924F] text-white rounded-[12px] py-3.5 px-4 text-[14px] font-[800] flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all"
           >
@@ -541,9 +559,11 @@ function LokSetuApp() {
                   }
                   if (item.label === "Issue Map") {
                     setActiveNav("Issue Map");
+                    setMobileDrawerOpen(false);
                     return;
                   }
                   setActiveNav(item.label.trim());
+                  setMobileDrawerOpen(false);
                 }}
                 className={`w-full flex items-center justify-between px-3 py-[10px] rounded-[10px] text-left transition-all ${isActive
                   ? "bg-[#145A5C] text-white"
@@ -656,16 +676,27 @@ function LokSetuApp() {
       </aside>
 
       {/* ── MAIN CONTENT (Center) ────────────────────────────────── */}
-      <main className="flex-1 flex flex-col h-full relative z-10 min-w-[700px] border-r border-gray-200 shadow-sm">
+      <main className="flex-1 flex flex-col h-full relative z-10 md:min-w-0 border-r border-gray-200 shadow-sm overflow-hidden">
 
         {/* Top Header */}
-        <header className="h-[80px] shrink-0 border-b border-gray-200 flex items-center gap-6 px-8 bg-white z-10">
+        <header className="h-[60px] md:h-[80px] shrink-0 border-b border-gray-200 flex items-center gap-3 md:gap-6 px-4 md:px-8 bg-white z-10">
+          {/* Mobile Hamburger */}
+          <button
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-[#F5F1EA] text-[#0F3D3E] shrink-0"
+            onClick={() => setMobileDrawerOpen(true)}
+            aria-label="Open menu"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
           {/* Community Feed Title */}
-          <div>
-            <h2 className="font-sora text-[20px] font-[800] text-[#1E293B] tracking-[-0.5px] leading-none whitespace-nowrap">
+          <div className="min-w-0">
+            <h2 className="font-sora text-[16px] md:text-[20px] font-[800] text-[#1E293B] tracking-[-0.5px] leading-none whitespace-nowrap">
               {activeNav === "My Reports" ? "My Reports" : activeNav === "Issue Map" ? "City Issue Map" : activeNav === "Analytics" ? "Performance Analytics" : "Community Feed"}
             </h2>
-            <p className="font-sora text-[13px] text-[#64748B] font-[600] mt-0.5">
+            <p className="font-sora text-[11px] md:text-[13px] text-[#64748B] font-[600] mt-0.5 truncate">
               {activeNav === "My Reports" ? "Your filed issues" : activeNav === "Issue Map" ? `Live map of reported issues in ${locationName.split(',')[0]}` : activeNav === "Analytics" ? "Civic response insights" : "Civic issues near you"}
             </p>
           </div>
@@ -687,10 +718,10 @@ function LokSetuApp() {
 
         {/* Dynamic Content based on Nav */}
         {(activeNav === "Community Feed" || activeNav === "My Reports") && (
-          <div className="flex-1 overflow-y-auto no-scrollbar p-8 bg-[#F5F1EA]">
+          <div className="flex-1 overflow-y-auto no-scrollbar p-4 md:p-8 pb-20 md:pb-8 bg-[#F5F1EA]">
 
             {/* Stats Row */}
-            <div className="grid grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="bg-white rounded-[12px] p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col justify-between">
                 <div>
                   <p className="font-sora text-[28px] font-[800] text-[#0F3D3E] leading-none mb-1.5 tracking-[-0.5px]">142</p>
@@ -725,13 +756,13 @@ function LokSetuApp() {
             </div>
 
             {/* Filter Bar */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
                 {filters.map(f => (
                   <button
                     key={f}
                     onClick={() => setActiveFilter(f)}
-                    className={`font-sora px-5 py-2 rounded-full text-[13px] font-[800] transition-all ${activeFilter === f
+                    className={`font-sora px-4 md:px-5 py-2 rounded-full text-[12px] md:text-[13px] font-[800] transition-all whitespace-nowrap shrink-0 ${activeFilter === f
                       ? "bg-[#145A5C] text-white shadow-md border border-[#145A5C]"
                       : "bg-white text-[#1E293B] border border-gray-200 hover:bg-gray-50 shadow-sm"
                       }`}
@@ -896,7 +927,7 @@ function LokSetuApp() {
 
         {/* Issue Map UI Placeholder */}
         {activeNav === "Issue Map" && (
-          <div id="issue-map" className="flex-1 p-8 bg-[#f5f9f9] flex flex-col relative w-full h-full overflow-hidden">
+          <div id="issue-map" className="flex-1 p-2 md:p-8 pb-20 md:pb-8 bg-[#f5f9f9] flex flex-col relative w-full h-full overflow-hidden">
             <IssueMap
               reportsData={reportsData}
               userLocation={fullLocation}
@@ -929,7 +960,7 @@ function LokSetuApp() {
       </main>
 
       {/* ── RIGHT SIDEBAR (Extra Data Layer) ─────────────────────── */}
-      <aside className="w-[320px] shrink-0 bg-white h-full overflow-y-auto no-scrollbar flex flex-col">
+      <aside className="hidden lg:flex w-[320px] shrink-0 bg-white h-full overflow-y-auto no-scrollbar flex-col">
 
         {/* Sticky top: Location + File Report */}
         <div className="px-6 pt-6 pb-5 border-b border-gray-100">
@@ -1155,11 +1186,11 @@ function LokSetuApp() {
       {
         showReportModal && (
           <div
-            className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 z-[100] flex items-end md:items-center justify-center md:p-4"
             onClick={() => { setShowReportModal(false); setReportFeedback(null); setReportPhoto(null); }}
           >
             <div
-              className="bg-white rounded-[16px] shadow-2xl max-w-[500px] w-full p-8 modal-slide-up no-scrollbar overflow-y-auto max-h-[90vh]"
+              className="bg-white rounded-t-[24px] md:rounded-[16px] shadow-2xl w-full md:max-w-[500px] p-6 md:p-8 modal-slide-up no-scrollbar overflow-y-auto max-h-[92vh] md:max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -1382,11 +1413,11 @@ function LokSetuApp() {
       {
         selectedReport && (
           <div
-            className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 z-[100] flex items-end md:items-center justify-center md:p-4"
             onClick={() => setSelectedReport(null)}
           >
             <div
-              className="bg-white rounded-[16px] shadow-2xl max-w-[550px] w-full p-8 modal-slide-up no-scrollbar overflow-y-auto max-h-[90vh] flex flex-col"
+              className="bg-white rounded-t-[24px] md:rounded-[16px] shadow-2xl w-full md:max-w-[550px] p-6 md:p-8 modal-slide-up no-scrollbar overflow-y-auto max-h-[92vh] md:max-h-[90vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -1641,6 +1672,55 @@ function LokSetuApp() {
       )}
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {/* ── MOBILE BOTTOM NAV ──────────────────────────────────────── */}
+      <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-gray-200 z-30 flex items-stretch">
+        {navItems.map((item) => {
+          const isActive = activeNav === item.label;
+          return (
+            <button
+              key={item.label}
+              onClick={() => {
+                if (item.label === "My Reports" && !user) {
+                  showToast("warning", "Sign In Required", "Please sign in to view your reports");
+                  router.push("/login");
+                  return;
+                }
+                setActiveNav(item.label.trim());
+              }}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-[800] font-sora transition-colors relative ${
+                isActive ? "text-[#0F3D3E]" : "text-[#94A3B8]"
+              }`}
+            >
+              {isActive && (
+                <span className="absolute top-0 left-[20%] right-[20%] h-[3px] bg-[#0F3D3E] rounded-b-full" />
+              )}
+              <span className={isActive ? "text-[#0F3D3E]" : "text-[#94A3B8]"}>{item.icon}</span>
+              <span>{item.label}</span>
+              {item.badge && (
+                <span className="absolute top-1.5 right-[22%] bg-[#F4A261] text-white text-[8px] font-[800] w-4 h-4 rounded-full flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+        {/* File a Report CTA in bottom nav */}
+        <button
+          onClick={() => {
+            if (!user) {
+              showToast("warning", "Sign In Required", "Please sign in to file a report");
+              router.push("/login");
+              return;
+            }
+            setShowReportModal(true);
+          }}
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-[800] font-sora text-[#F4A261]"
+        >
+          <span className="w-8 h-8 bg-[#F4A261] rounded-full flex items-center justify-center text-white text-[20px] leading-none font-[600] mb-0.5">+</span>
+          <span>Report</span>
+        </button>
+      </nav>
     </div>
   );
 }
