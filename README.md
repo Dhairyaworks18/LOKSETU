@@ -44,9 +44,10 @@ git clone https://github.com/Dhairyaworks18/LOKSETU.git
 cd LOKSETU
 ```
 
-### 2. Install Dependencies
+### 2. Install Dependencies for Frontend
 
 ```bash
+cd frontend
 npm install
 ```
 
@@ -60,7 +61,7 @@ npm install
 
 ### 4. Set Up Environment Variables
 
-Create a `.env.local` file in the project root:
+Create a `.env.local` file in the `frontend` directory:
 
 ```env
 NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
@@ -74,6 +75,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 ### 5. Run the Development Server
 
 ```bash
+# Ensure you are in the frontend directory
 npm run dev
 ```
 
@@ -86,28 +88,28 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ```
 LOKSETU/
 │
-├── app/                          # Frontend — Next.js application
-│   ├── components/
-│   │   ├── IssueMap.js           # Leaflet map component
-│   │   └── Toast.js              # Notification toast system
-│   ├── login/
-│   │   └── page.js               # Authentication page
-│   ├── globals.css               # Global styles
-│   ├── layout.js                 # Root layout and metadata
-│   └── page.js                   # Main dashboard page
+├── frontend/                     # Next.js Application
+│   ├── app/                      
+│   │   ├── components/           
+│   │   ├── login/                
+│   │   ├── globals.css           
+│   │   ├── layout.js             
+│   │   └── page.js               
+│   ├── lib/                      # Firebase service layer
+│   │   ├── firebase.js           
+│   │   ├── authHelpers.js        
+│   │   └── firebaseHelpers.js    
+│   ├── tailwind.config.js        
+│   ├── next.config.mjs           
+│   └── package.json              
 │
-├── lib/                          # Service layer — Firebase integrations
-│   ├── firebase.js               # Firebase app initialisation
-│   ├── authHelpers.js            # Authentication utilities
-│   └── firebaseHelpers.js        # Firestore CRUD operations
+├── backend/                      # Firebase Configuration
+│   ├── firebase/                 
+│   │   ├── firestore.rules       
+│   │   └── storage.rules         
+│   └── firebase.json             
 │
-├── firebase/                     # Backend — Firebase configuration
-│   ├── firestore.rules           # Firestore security rules
-│   └── storage.rules             # Firebase Storage security rules
-│
-├── firebase.json                 # Firebase CLI configuration
-├── tailwind.config.js            # Tailwind CSS configuration
-└── next.config.mjs               # Next.js configuration
+└── README.md
 ```
 
 ---
@@ -118,14 +120,15 @@ This project is optimised for deployment on [Vercel](https://vercel.com).
 
 1. Push the repository to GitHub
 2. Import the project in the Vercel dashboard
-3. Add all six `NEXT_PUBLIC_FIREBASE_*` environment variables under **Settings → Environment Variables**
-4. Deploy
+3. Set the **Root Directory** to `frontend`
+4. Add all six `NEXT_PUBLIC_FIREBASE_*` environment variables under **Settings → Environment Variables**
+5. Deploy
 
 ---
 
 ## Firestore Security Rules
 
-The project includes production-ready Firestore and Storage rules located in `firestore.rules` and `storage.rules`. Review and tighten these rules before going live in production.
+The project includes production-ready Firestore and Storage rules located in `backend/firebase/firestore.rules` and `backend/firebase/storage.rules`. Review and tighten these rules before going live in production.
 
 ---
 

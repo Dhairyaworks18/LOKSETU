@@ -1,12 +1,12 @@
 # Dependencies
-/node_modules
+node_modules/
 
 # Next.js
-/.next/
-/out/
+.next/
+out/
 
 # Production build
-/build
+build/
 
 # Environment variables (never commit secrets)
 .env*.local
@@ -34,5 +34,5 @@ yarn-error.log*
 .pnp
 .pnp.js
 .yarn/install-state.gz
-/coverage
+coverage/
 *.pem
