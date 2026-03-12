@@ -2,18 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /reports/{reportId} {
-      // Anyone can read reports
       allow read: if true;
 
-      // Authenticated users can create new reports
       allow create: if request.auth != null;
 
-      // Authenticated users can update only the upvote-related fields (votes + upvotedBy)
       allow update: if request.auth != null
                     && request.resource.data.diff(resource.data)
                        .affectedKeys().hasOnly(['votes', 'upvotedBy']);
 
-      // Only the report owner (userId matches) can delete their report
       allow delete: if request.auth != null
                     && request.auth.uid == resource.data.userId;
     }

@@ -85,22 +85,29 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ```
 LOKSETU/
-├── app/
+│
+├── app/                          # Frontend — Next.js application
 │   ├── components/
-│   │   ├── IssueMap.js       # Leaflet map component
-│   │   └── Toast.js          # Notification toast system
+│   │   ├── IssueMap.js           # Leaflet map component
+│   │   └── Toast.js              # Notification toast system
 │   ├── login/
-│   │   └── page.js           # Authentication page
-│   ├── globals.css           # Global styles
-│   ├── layout.js             # Root layout with metadata
-│   └── page.js               # Main application page
-├── lib/
-│   ├── authHelpers.js        # Firebase auth utilities
-│   ├── firebase.js           # Firebase app initialisation
-│   └── firebaseHelpers.js    # Firestore CRUD operations
-├── firestore.rules           # Firestore security rules
-├── storage.rules             # Firebase Storage security rules
-└── tailwind.config.js        # Tailwind configuration
+│   │   └── page.js               # Authentication page
+│   ├── globals.css               # Global styles
+│   ├── layout.js                 # Root layout and metadata
+│   └── page.js                   # Main dashboard page
+│
+├── lib/                          # Service layer — Firebase integrations
+│   ├── firebase.js               # Firebase app initialisation
+│   ├── authHelpers.js            # Authentication utilities
+│   └── firebaseHelpers.js        # Firestore CRUD operations
+│
+├── firebase/                     # Backend — Firebase configuration
+│   ├── firestore.rules           # Firestore security rules
+│   └── storage.rules             # Firebase Storage security rules
+│
+├── firebase.json                 # Firebase CLI configuration
+├── tailwind.config.js            # Tailwind CSS configuration
+└── next.config.mjs               # Next.js configuration
 ```
 
 ---
