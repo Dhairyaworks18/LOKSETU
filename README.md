@@ -1,46 +1,133 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# LokSetu — लोक सेतु
+
+**Bridge to the People · India**
+
+LokSetu is a civic issue reporting platform built for Indian citizens. It enables residents to report local infrastructure problems — potholes, broken streetlights, waterlogging, garbage — and track their resolution in real time through a transparent, government-facing dashboard.
+
+---
+
+## Features
+
+- **Civic Issue Reporting** — Submit reports with title, description, issue type, and photo evidence
+- **Live Issue Map** — Leaflet-powered map showing geo-tagged reports by status
+- **Community Feed** — Browse, filter, and upvote reports submitted by other citizens
+- **Geospatial Duplicate Detection** — Prevents duplicate reports within 150 metres of an existing issue
+- **Trust Score System** — Reward mechanism that scores citizen reporting reliability
+- **Authentication** — Google Sign-In and Email/Password via Firebase Auth
+- **My Reports** — Personal dashboard for tracking submitted issues
+- **Responsive Design** — Fully adapted for mobile and desktop
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 14 (App Router) |
+| Styling | Tailwind CSS |
+| Database | Firebase Firestore |
+| Storage | Firebase Storage |
+| Auth | Firebase Authentication |
+| Maps | Leaflet + React Leaflet |
+| Icons | Lucide React |
+| Fonts | Sora (Google Fonts) |
+| Deployment | Vercel |
+
+---
 
 ## Getting Started
 
-First, you need to set up Firebase for LokSetu:
-1. Go to firebase.google.com -> create project named `loksetu`
-2. Enable Firestore in test mode, region `asia-south1 (Mumbai)`
-3. Enable Storage in test mode
-4. Go to Project Settings -> Your Apps -> Web app -> copy config
-5. Copy `.env.local.example` to `.env.local` and paste values
-6. Run `npm install firebase`
-7. Run `npm run dev`
-8. To deploy: run `vercel` and add all 6 env variables in Vercel dashboard under Settings -> Environment Variables
+### 1. Clone the Repository
 
-Then, run the development server:
+```bash
+git clone https://github.com/Dhairyaworks18/LOKSETU.git
+cd LOKSETU
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure Firebase
+
+1. Go to [firebase.google.com](https://firebase.google.com) and create a project named `loksetu`
+2. Enable **Firestore Database** in `asia-south1` (Mumbai) region
+3. Enable **Firebase Storage**
+4. Enable **Firebase Authentication** with Google and Email/Password providers
+5. Navigate to **Project Settings → Your Apps → Web App** and copy the config
+
+### 4. Set Up Environment Variables
+
+Create a `.env.local` file in the project root:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
+
+### 5. Run the Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## Project Structure
 
-## Learn More
+```
+LOKSETU/
+├── app/
+│   ├── components/
+│   │   ├── IssueMap.js       # Leaflet map component
+│   │   └── Toast.js          # Notification toast system
+│   ├── login/
+│   │   └── page.js           # Authentication page
+│   ├── globals.css           # Global styles
+│   ├── layout.js             # Root layout with metadata
+│   └── page.js               # Main application page
+├── lib/
+│   ├── authHelpers.js        # Firebase auth utilities
+│   ├── firebase.js           # Firebase app initialisation
+│   └── firebaseHelpers.js    # Firestore CRUD operations
+├── firestore.rules           # Firestore security rules
+├── storage.rules             # Firebase Storage security rules
+└── tailwind.config.js        # Tailwind configuration
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+This project is optimised for deployment on [Vercel](https://vercel.com).
 
-## Deploy on Vercel
+1. Push the repository to GitHub
+2. Import the project in the Vercel dashboard
+3. Add all six `NEXT_PUBLIC_FIREBASE_*` environment variables under **Settings → Environment Variables**
+4. Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+## Firestore Security Rules
+
+The project includes production-ready Firestore and Storage rules located in `firestore.rules` and `storage.rules`. Review and tighten these rules before going live in production.
+
+---
+
+## Contributing
+
+This project is currently maintained by [Dhairya](https://github.com/Dhairyaworks18). Issues and pull requests are welcome.
+
+---
+
+## License
+
+This project is open source. See the repository for details.

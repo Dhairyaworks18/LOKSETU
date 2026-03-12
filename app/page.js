@@ -13,9 +13,6 @@ const IssueMap = dynamic(() => import("./components/IssueMap"), {
   loading: () => <div className="w-full h-full flex items-center justify-center bg-[#E8F3F3] animate-pulse rounded-[24px]">Loading Map...</div>
 });
 
-// ─── SAMPLE DATA ────────────────────────────────────────────────────────────
-// Hardcoded REPORTS array removed. Using Firebase fetch object.
-
 
 
 const STATUS_STEPS = ["Filed", "Review", "Assigned", "Work", "Resolved"];
@@ -40,7 +37,6 @@ function calculateTrustScore(reports, user) {
   return Math.max(0, score);
 }
 
-// ─── COMPONENTS ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }) {
   const styles = {
@@ -123,7 +119,7 @@ function ProgressTracker({ step }) {
           nodeColor = "bg-white border-2 border-[#F4A261]";
           textColor = "text-[#F4A261]";
         } else if (isWork) {
-          // keep default iconNode (null) and colors
+          // default
         } else if (isResolved && completed) {
           iconNode = (
             <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -175,10 +171,8 @@ function ProgressTracker({ step }) {
   );
 }
 
-// ─── HAVERSINE DISTANCE UTILITY ─────────────────────────────────────────────
-// Returns the distance in metres between two GPS coordinates.
 function haversineDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371000; // Earth radius in metres
+  const R = 6371000;
   const toRad = (deg) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
@@ -189,9 +183,8 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const DUPLICATE_RADIUS_METRES = 150; // flag duplicates within 150 m
+const DUPLICATE_RADIUS_METRES = 150;
 
-// ─── MAIN APP PAGE ───────────────────────────────────────────────────────────
 function LokSetuApp() {
   const [reportsData, setReportsData] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
@@ -237,7 +230,7 @@ function LokSetuApp() {
   const [sortBy, setSortBy] = useState("Sort: Recent First");
   const [locationName, setLocationName] = useState("Detecting location...");
   const [fullLocation, setFullLocation] = useState(null);
-  const [userCoords, setUserCoords] = useState(null); // { lat, lng } — real GPS fix
+  const [userCoords, setUserCoords] = useState(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTrustScoreInfo, setShowTrustScoreInfo] = useState(false);
   const trustScoreInfoRef = useRef(null);
@@ -251,7 +244,6 @@ function LokSetuApp() {
     return (trustScore / 100) * 100;
   }, [trustScore]);
 
-  // Set of report IDs the current user has upvoted — derived from Firestore data
   const userUpvotedIds = useMemo(() => {
     if (!user) return new Set();
     return new Set(
@@ -261,14 +253,12 @@ function LokSetuApp() {
     );
   }, [reportsData, user]);
 
-  // File Report State
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportIssueType, setReportIssueType] = useState("");
   const [reportTitle, setReportTitle] = useState("");
   const [reportDescription, setReportDescription] = useState("");
-  // Delete confirmation state
-  const [deleteConfirm, setDeleteConfirm] = useState(null); // holds the report object to delete
-  const [submitting, setSubmitting] = useState(false); // tracks report submission in progress
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [reportPhoto, setReportPhoto] = useState(null);
 
   useEffect(() => {
@@ -278,9 +268,7 @@ function LokSetuApp() {
           async (position) => {
             try {
               const { latitude, longitude } = position.coords;
-              // Save raw coordinates for duplicate detection & report submission
               setUserCoords({ lat: latitude, lng: longitude });
-              // Using OpenStreetMap's free Nominatim reverse geocoding API
               const response = await fetch(
                 `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
                 {
@@ -296,24 +284,20 @@ function LokSetuApp() {
 
               const data = await response.json();
 
-              // Store full location data
               setFullLocation({
                 displayName: data.display_name || '',
                 address: data.address || {},
                 coordinates: { lat: latitude, lon: longitude }
               });
 
-              // Try multiple address fields to get the best location name
               const address = data.address || {};
 
-              // Prioritize district - check multiple possible fields
               const district = address.district ||
                 address.state_district ||
                 address.county ||
                 address.subdistrict ||
                 address.sub_district;
 
-              // City/town fields
               const city = address.city ||
                 address.town ||
                 address.village ||
@@ -327,14 +311,11 @@ function LokSetuApp() {
 
               const country = address.country;
 
-              // Build location string with district prioritized
               if (district && state) {
                 setLocationName(`${district}, ${state}`);
               } else if (district && country && country !== 'India') {
-                // Only use country if it's not India (since we want Indian districts)
                 setLocationName(`${district}, ${country}`);
               } else if (city && state) {
-                // Fallback to city if district not available
                 setLocationName(`${city}, ${state}`);
               } else if (district) {
                 setLocationName(district);
@@ -343,11 +324,8 @@ function LokSetuApp() {
               } else if (state) {
                 setLocationName(state);
               } else if (data.display_name) {
-                // Parse display_name to extract district/city and state
                 const parts = data.display_name.split(',').map(p => p.trim());
-                // Look for district/city (usually first or second part) and state
                 if (parts.length >= 3) {
-                  // Usually format: "City/District, State, Country"
                   setLocationName(`${parts[0]}, ${parts[1]}`);
                 } else if (parts.length >= 2) {
                   setLocationName(`${parts[0]}, ${parts[parts.length - 1]}`);
@@ -357,16 +335,13 @@ function LokSetuApp() {
                   setLocationName("Location unavailable");
                 }
               } else {
-                // Last resort: show coordinates
                 setLocationName(`${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
               }
             } catch (error) {
               console.error("Error fetching location name:", error);
-              // Try to get location from IP as fallback
               try {
                 const ipResponse = await fetch('https://ipapi.co/json/');
                 const ipData = await ipResponse.json();
-                // Prioritize district/city and state over country
                 if (ipData.city && ipData.region) {
                   setLocationName(`${ipData.city}, ${ipData.region}`);
                 } else if (ipData.city && ipData.region_name) {
@@ -385,11 +360,9 @@ function LokSetuApp() {
           },
           (error) => {
             console.error("Error getting location:", error);
-            // Try IP-based location as fallback
             fetch('https://ipapi.co/json/')
               .then(res => res.json())
               .then(data => {
-                // Prioritize district/city and state over country
                 if (data.city && data.region) {
                   setLocationName(`${data.city}, ${data.region}`);
                 } else if (data.city && data.region_name) {
@@ -413,7 +386,6 @@ function LokSetuApp() {
           }
         );
       } else {
-        // Fallback to IP-based location if geolocation not supported
         fetch('https://ipapi.co/json/')
           .then(res => res.json())
           .then(data => {
@@ -455,15 +427,12 @@ function LokSetuApp() {
   }, [showTrustScoreInfo]);
 
   const filteredReports = reportsData.filter(rpt => {
-    // Nav Filter
     if (activeNav === "My Reports" && rpt.reporter !== (user?.displayName || user?.email)) return false;
 
-    // Status Filter
     if (activeFilter === "Submitted" && rpt.status !== "SUBMITTED") return false;
     if (activeFilter === "In Progress" && rpt.status !== "IN PROGRESS") return false;
     if (activeFilter === "Resolved" && rpt.status !== "RESOLVED") return false;
 
-    // Search Filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       if (!rpt.title.toLowerCase().includes(q) &&
@@ -475,10 +444,7 @@ function LokSetuApp() {
 
     return true;
   }).sort((a, b) => {
-    if (sortBy === "Sort: Most Upvoted") {
-      return b.upvotes - a.upvotes;
-    }
-    // "Sort: Recent First" (default)
+    if (sortBy === "Sort: Most Upvoted") return b.upvotes - a.upvotes;
     return b.id - a.id;
   });
 
@@ -495,7 +461,6 @@ function LokSetuApp() {
   return (
     <div className="flex h-screen w-full bg-[#F5F1EA] font-sora overflow-hidden text-[#1E293B] relative">
 
-      {/* ── MOBILE DRAWER OVERLAY ──────────────────────────────── */}
       {mobileDrawerOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
@@ -503,7 +468,6 @@ function LokSetuApp() {
         />
       )}
 
-      {/* ── LEFT SIDEBAR ─────────────────────────────────────────── */}
       <aside className={`
         fixed md:relative
         top-0 left-0 h-full
@@ -514,7 +478,6 @@ function LokSetuApp() {
         ${mobileDrawerOpen ? 'translate-x-0 drawer-slide-in' : '-translate-x-full md:translate-x-0'}
       `}>
 
-        {/* Logo Section */}
         <div className="px-6 mb-8">
           <p className="font-sora text-[#F4A261] text-[14px] font-[800] tracking-widest leading-none mb-1">
             लोक सेतु
@@ -544,7 +507,6 @@ function LokSetuApp() {
           </button>
         </div>
 
-        {/* Nav Links */}
         <nav className="flex-1 px-3 space-y-1">
           {navItems.map((item) => {
             const isActive = activeNav === item.label;
@@ -586,7 +548,6 @@ function LokSetuApp() {
           })}
         </nav>
 
-        {/* User Card */}
         <div className="px-4 mt-auto border-t border-white/5 pt-4">
           {user ? (
             <div ref={trustScoreInfoRef} className="relative">
@@ -675,12 +636,9 @@ function LokSetuApp() {
         </div>
       </aside>
 
-      {/* ── MAIN CONTENT (Center) ────────────────────────────────── */}
       <main className="flex-1 flex flex-col h-full relative z-10 md:min-w-0 border-r border-gray-200 shadow-sm overflow-hidden">
 
-        {/* Top Header */}
         <header className="h-[60px] md:h-[80px] shrink-0 border-b border-gray-200 flex items-center gap-3 md:gap-6 px-4 md:px-8 bg-white z-10">
-          {/* Mobile Hamburger */}
           <button
             className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-[#F5F1EA] text-[#0F3D3E] shrink-0"
             onClick={() => setMobileDrawerOpen(true)}
@@ -691,7 +649,6 @@ function LokSetuApp() {
             </svg>
           </button>
 
-          {/* Community Feed Title */}
           <div className="min-w-0">
             <h2 className="font-sora text-[16px] md:text-[20px] font-[800] text-[#1E293B] tracking-[-0.5px] leading-none whitespace-nowrap">
               {activeNav === "My Reports" ? "My Reports" : activeNav === "Issue Map" ? "City Issue Map" : activeNav === "Analytics" ? "Performance Analytics" : "Community Feed"}
@@ -701,7 +658,6 @@ function LokSetuApp() {
             </p>
           </div>
 
-          {/* Search — now takes all remaining space */}
           {(activeNav === "Community Feed" || activeNav === "My Reports") && (
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[16px] h-[16px] text-gray-400" />
@@ -716,11 +672,9 @@ function LokSetuApp() {
           )}
         </header>
 
-        {/* Dynamic Content based on Nav */}
         {(activeNav === "Community Feed" || activeNav === "My Reports") && (
           <div className="flex-1 overflow-y-auto no-scrollbar p-4 md:p-8 pb-20 md:pb-8 bg-[#F5F1EA]">
 
-            {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="bg-white rounded-[12px] p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col justify-between">
                 <div>
@@ -755,7 +709,6 @@ function LokSetuApp() {
               </div>
             </div>
 
-            {/* Filter Bar */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
                 {filters.map(f => (
@@ -802,7 +755,6 @@ function LokSetuApp() {
               </div>
             </div>
 
-            {/* Feed List */}
             <div className="space-y-6">
               {filteredReports.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -820,7 +772,6 @@ function LokSetuApp() {
                   onClick={() => setSelectedReport(rpt)}
                 >
 
-                  {/* Header */}
                   <div className="p-5 pb-4 flex items-start gap-4">
                     <div className="w-12 h-12 rounded-[12px] bg-gray-50 border border-gray-100 flex items-center justify-center text-2xl shrink-0 shadow-inner group-hover:scale-110 transition-transform overflow-hidden">
                       {typeof rpt.icon === 'string' && rpt.icon.startsWith('http') ? <img src={rpt.icon} alt="icon" className="w-8 h-8 object-contain drop-shadow-sm" /> : rpt.icon}
@@ -838,7 +789,6 @@ function LokSetuApp() {
                     </div>
                   </div>
 
-                  {/* Simulated Map / Placeholder Banner */}
                   <div className="w-full h-[180px] bg-[#DCECE9] relative overflow-hidden flex items-center justify-center border-y border-gray-100">
                     <div className="absolute inset-0 opacity-10" style={{
                       backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 19px, #0B2F30 19px, #0B2F30 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #0B2F30 19px, #0B2F30 20px)`
@@ -848,15 +798,12 @@ function LokSetuApp() {
                     </div>
                   </div>
 
-                  {/* Content Body */}
                   <div className="p-6">
-                    {/* Location Pin Line */}
                     <div className="flex items-center gap-1.5 mb-3">
                       <MapPin className="w-[14px] h-[14px] text-[#E63946]" />
                       <span className="font-sora text-[12px] font-[800] text-[#1F7A7A] group-hover:underline">{rpt.location}</span>
                     </div>
 
-                    {/* Description */}
                     <p className="font-sora text-[14px] text-[#1E293B]/80 leading-relaxed font-[600] mb-6 max-w-3xl line-clamp-2">
                       {rpt.description}
                     </p>
@@ -865,7 +812,6 @@ function LokSetuApp() {
                     <ProgressTracker step={rpt.progressStep} />
                   </div>
 
-                  {/* Footer Actions */}
                   <div className="p-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
                     <div className="flex items-center gap-3">
                       <button
@@ -902,7 +848,6 @@ function LokSetuApp() {
                       >
                         <Share className="w-4 h-4 text-[#64748B]" /> Share
                       </button>
-                      {/* Delete button — only shown in My Reports for the owner */}
                       {activeNav === "My Reports" && user && (rpt.userId === user.uid || rpt.reporter === (user.displayName || user.email)) && (
                         <button
                           onClick={(e) => {
@@ -925,7 +870,6 @@ function LokSetuApp() {
           </div>
         )}
 
-        {/* Issue Map UI Placeholder */}
         {activeNav === "Issue Map" && (
           <div id="issue-map" className="flex-1 p-2 md:p-8 pb-20 md:pb-8 bg-[#f5f9f9] flex flex-col relative w-full h-full overflow-hidden">
             <IssueMap
@@ -936,7 +880,6 @@ function LokSetuApp() {
           </div>
         )}
 
-        {/* Analytics UI Placeholder */}
         {activeNav === "Analytics" && (
           <div className="flex-1 overflow-y-auto no-scrollbar p-8 bg-[#F5F1EA] flex flex-col items-center justify-center">
             <div className="w-full max-w-2xl bg-white rounded-[24px] p-10 shadow-lg border border-gray-100 text-center">
@@ -959,10 +902,8 @@ function LokSetuApp() {
         )}
       </main>
 
-      {/* ── RIGHT SIDEBAR (Extra Data Layer) ─────────────────────── */}
       <aside className="hidden lg:flex w-[320px] shrink-0 bg-white h-full overflow-y-auto no-scrollbar flex-col">
 
-        {/* Sticky top: Location + File Report */}
         <div className="px-6 pt-6 pb-5 border-b border-gray-100">
           {/* Location Pill */}
           <div
@@ -973,7 +914,6 @@ function LokSetuApp() {
             <span className="font-sora text-[13px] font-[800] text-[#1F7A7A] truncate max-w-[200px]">{locationName}</span>
           </div>
 
-          {/* File a Report CTA */}
           <button
             onClick={() => {
               if (!user) {
@@ -989,7 +929,6 @@ function LokSetuApp() {
           </button>
         </div>
 
-        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto no-scrollbar py-6 px-6">
 
           {/* Map Card - click to open full Issue Map */}
@@ -1012,7 +951,6 @@ function LokSetuApp() {
                 className="w-full h-full rounded-[16px] pointer-events-none"
               />
 
-              {/* Map overlay pill */}
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[90%] bg-white rounded-lg py-2 px-3 shadow-lg flex items-center gap-2 border border-gray-100 z-20 pointer-events-none">
                 <div className="w-2.5 h-2.5 rounded-full bg-[#22A06B]" />
                 <span className="font-sora text-[11px] font-[800] text-[#1F7A7A]">{reportsData.length} active reports</span>
@@ -1025,7 +963,6 @@ function LokSetuApp() {
             </div>
           </div>
 
-          {/* Issue Breakdown */}
           <div className="mb-8 p-1">
             <h3 className="font-sora text-[11px] font-[800] text-[#1E293B] tracking-widest uppercase flex items-center gap-2 mb-4">
               <BarChart2 className="w-3.5 h-3.5" /> ISSUE BREAKDOWN
@@ -1056,7 +993,6 @@ function LokSetuApp() {
         </div>
       </aside>
 
-      {/* Location Details Modal */}
       {
         showLocationModal && (
           <div
@@ -1084,7 +1020,6 @@ function LokSetuApp() {
 
               {fullLocation ? (
                 <div className="space-y-4">
-                  {/* Full Address */}
                   <div>
                     <p className="font-sora text-[11px] font-[800] text-[#64748B] uppercase tracking-wider mb-2">Full Address</p>
                     <p className="font-sora text-[14px] text-[#1E293B] font-[600] leading-relaxed">
@@ -1092,7 +1027,6 @@ function LokSetuApp() {
                     </p>
                   </div>
 
-                  {/* Address Details */}
                   {fullLocation.address && Object.keys(fullLocation.address).length > 0 && (
                     <div>
                       <p className="font-sora text-[11px] font-[800] text-[#64748B] uppercase tracking-wider mb-2">Address Details</p>
@@ -1155,7 +1089,6 @@ function LokSetuApp() {
                     </div>
                   )}
 
-                  {/* Coordinates */}
                   {fullLocation.coordinates && (
                     <div>
                       <p className="font-sora text-[11px] font-[800] text-[#64748B] uppercase tracking-wider mb-2">Coordinates</p>
@@ -1182,7 +1115,6 @@ function LokSetuApp() {
         )
       }
 
-      {/* ── FILE REPORT MODAL ────────────────────────────────────── */}
       {
         showReportModal && (
           <div
@@ -1206,9 +1138,7 @@ function LokSetuApp() {
                 </button>
               </div>
 
-              {/* Content Form */}
               <div className="space-y-6">
-                {/* Issue Type */}
                 <div>
                   <label className="font-sora text-[11px] font-[800] text-[#1E293B] tracking-widest uppercase mb-3 block">
                     Issue Type
@@ -1233,7 +1163,6 @@ function LokSetuApp() {
                   </div>
                 </div>
 
-                {/* Title */}
                 <div>
                   <label className="font-sora text-[11px] font-[800] text-[#1E293B] tracking-widest uppercase mb-2 block">
                     Report Title
@@ -1247,7 +1176,6 @@ function LokSetuApp() {
                   />
                 </div>
 
-                {/* Description */}
                 <div>
                   <label className="font-sora text-[11px] font-[800] text-[#1E293B] tracking-widest uppercase mb-2 block">
                     Description
@@ -1260,7 +1188,6 @@ function LokSetuApp() {
                   />
                 </div>
 
-                {/* Photo Evidence */}
                 <div>
                   <label className="font-sora text-[11px] font-[800] text-[#1E293B] tracking-widest uppercase mb-2 block">
                     Photo Evidence
@@ -1304,7 +1231,6 @@ function LokSetuApp() {
                   )}
                 </div>
 
-                {/* Auto Captured Location Label */}
                 <div className="flex items-center gap-2 justify-center py-2 bg-gray-50 rounded-[12px] border border-gray-100">
                   <MapPin className="w-3.5 h-3.5 text-[#22A06B]" />
                   <span className="font-sora text-[12px] font-[700] text-[#64748B]">
@@ -1312,7 +1238,6 @@ function LokSetuApp() {
                   </span>
                 </div>
 
-                {/* Submit Action */}
                 <button
                   onClick={() => {
                     if (!reportIssueType || !reportTitle || !reportDescription) {
@@ -1320,16 +1245,10 @@ function LokSetuApp() {
                       return;
                     }
 
-                    // ── Geospatial Duplicate Detection (Haversine) ──────────
-                    // Only flag as duplicate if:
-                    //   1. We have the user's GPS coords.
-                    //   2. The existing report has GPS coords stored.
-                    //   3. They share the same issue type.
-                    //   4. They are within DUPLICATE_RADIUS_METRES of each other.
                     let duplicateReport = null;
                     if (userCoords) {
                       duplicateReport = reportsData.find(r => {
-                        if (!r.lat || !r.lng) return false; // skip legacy reports with no coords
+                        if (!r.lat || !r.lng) return false;
                         const isSameType = r.type.toLowerCase() === reportIssueType.toLowerCase();
                         if (!isSameType) return false;
                         const dist = haversineDistance(userCoords.lat, userCoords.lng, r.lat, r.lng);
@@ -1409,7 +1328,6 @@ function LokSetuApp() {
         )
       }
 
-      {/* ── REPORT DETAIL MODAL ────────────────────────────────────── */}
       {
         selectedReport && (
           <div
@@ -1420,7 +1338,6 @@ function LokSetuApp() {
               className="bg-white rounded-t-[24px] md:rounded-[16px] shadow-2xl w-full md:max-w-[550px] p-6 md:p-8 modal-slide-up no-scrollbar overflow-y-auto max-h-[92vh] md:max-h-[90vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-sora text-[20px] font-[800] text-[#1E293B] tracking-[-0.5px] flex items-center gap-2">
                   <span className="text-xl leading-none">{typeof selectedReport.icon === 'string' && selectedReport.icon.startsWith('http') ? <img src={selectedReport.icon} alt="icon" className="w-6 h-6 object-contain" /> : selectedReport.icon}</span> Report Detail
@@ -1433,7 +1350,6 @@ function LokSetuApp() {
                 </button>
               </div>
 
-              {/* Title & Meta Info */}
               <h2 className="font-sora text-[22px] font-[800] text-[#1E293B] leading-tight mb-3">
                 {selectedReport.title}
               </h2>
@@ -1444,24 +1360,20 @@ function LokSetuApp() {
                 </span>
               </div>
 
-              {/* Description */}
               <p className="font-sora text-[14px] text-[#1E293B]/80 font-[600] leading-relaxed mb-4">
                 {selectedReport.description}
               </p>
 
-              {/* Location */}
               <div className="flex items-center gap-1.5 mb-8">
                 <MapPin className="w-[14px] h-[14px] text-[#1F7A7A]" />
                 <span className="font-sora text-[13px] font-[800] text-[#1F7A7A] hover:underline cursor-pointer">{selectedReport.location}</span>
               </div>
 
-              {/* Vertical Timeline */}
               <div className="bg-[#FAF9F6] rounded-[16px] p-6 mb-8 border border-[#F0EBE1]">
                 <p className="font-sora text-[11px] font-[800] text-[#64748B] tracking-widest uppercase mb-6">Full Progress Timeline</p>
 
                 <div className="relative border-l-2 border-dashed border-[#E2E8F0] ml-3.5 space-y-8 pb-2">
 
-                  {/* Step 1: Filed */}
                   <div className="relative pl-8">
                     <div className={`absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full flex items-center justify-center border-2 bg-white z-10 ${selectedReport.progressStep >= 0 ? "border-[#1F7A7A]" : "border-gray-200"}`}>
                       {selectedReport.progressStep > 0 ? (
@@ -1492,7 +1404,6 @@ function LokSetuApp() {
                     </div>
                   </div>
 
-                  {/* Step 2: Under Review */}
                   <div className="relative pl-8">
                     <div className={`absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full flex items-center justify-center border-2 bg-white z-10 ${selectedReport.progressStep >= 1 ? "border-[#F4A261]" : "border-gray-200"}`}>
                       {selectedReport.progressStep > 1 ? (
@@ -1512,7 +1423,6 @@ function LokSetuApp() {
                     )}
                   </div>
 
-                  {/* Step 3: Assigned */}
                   <div className="relative pl-8">
                     <div className={`absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full flex items-center justify-center border-2 bg-white z-10 ${selectedReport.progressStep >= 2 ? "border-[#F4A261]" : "border-gray-200"}`}>
                       {selectedReport.progressStep > 2 ? (
@@ -1527,7 +1437,6 @@ function LokSetuApp() {
                     <p className="font-sora text-[12px] font-[600] text-[#94A3B8]">{selectedReport.progressStep >= 2 ? "Work force designated" : "Pending"}</p>
                   </div>
 
-                  {/* Step 4: Work Order */}
                   <div className="relative pl-8">
                     <div className={`absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full flex items-center justify-center border-2 bg-white z-10 ${selectedReport.progressStep >= 3 ? "border-[#F4A261]" : "border-gray-200"}`}>
                       {selectedReport.progressStep > 3 ? (
@@ -1542,7 +1451,6 @@ function LokSetuApp() {
                     <p className="font-sora text-[12px] font-[600] text-[#94A3B8]">{selectedReport.progressStep >= 3 ? "Work initiated on ground" : "Pending"}</p>
                   </div>
 
-                  {/* Step 5: Resolved */}
                   <div className="relative pl-8">
                     <div className={`absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full flex items-center justify-center border-2 bg-white z-10 ${selectedReport.progressStep >= 4 ? "border-[#22A06B]" : "border-gray-200"}`}>
                       {selectedReport.progressStep >= 4 ? (
@@ -1558,7 +1466,6 @@ function LokSetuApp() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex items-center gap-4 mt-auto pt-4 border-t border-gray-100">
                 <button
                   onClick={(e) => {
@@ -1596,7 +1503,6 @@ function LokSetuApp() {
                 >
                   <Share className="w-4 h-4" /> Share Report
                 </button>
-                {/* Delete button in detail modal — only for the owner */}
                 {user && (selectedReport.userId === user.uid || selectedReport.reporter === (user.displayName || user.email)) && (
                   <button
                     onClick={(e) => {
@@ -1614,7 +1520,6 @@ function LokSetuApp() {
         )
       }
 
-      {/* ── DELETE CONFIRMATION MODAL ─────────────────────────────── */}
       {deleteConfirm && (
         <div
           className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
@@ -1624,7 +1529,6 @@ function LokSetuApp() {
             className="bg-white rounded-[20px] shadow-2xl max-w-sm w-full p-7 modal-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Icon */}
             <div className="w-14 h-14 rounded-full bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center mx-auto mb-5">
               <Trash2 className="w-6 h-6 text-[#E63946]" />
             </div>
@@ -1655,7 +1559,6 @@ function LokSetuApp() {
                   setDeleteConfirm(null);
                   deleteReport(rptToDelete.id, user.uid)
                     .then(() => {
-                      // Close detail modal if the deleted report is open
                       if (selectedReport?.id === rptToDelete.id) setSelectedReport(null);
                       return fetchReports().then(setReportsData);
                     })
@@ -1673,7 +1576,6 @@ function LokSetuApp() {
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      {/* ── MOBILE BOTTOM NAV ──────────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-gray-200 z-30 flex items-stretch">
         {navItems.map((item) => {
           const isActive = activeNav === item.label;
@@ -1705,7 +1607,6 @@ function LokSetuApp() {
             </button>
           );
         })}
-        {/* File a Report CTA in bottom nav */}
         <button
           onClick={() => {
             if (!user) {

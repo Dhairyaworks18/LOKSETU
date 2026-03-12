@@ -15,10 +15,8 @@ export function Toast({ id, type = "info", title, message, onClose }) {
     const variant = VARIANT_STYLES[type] || VARIANT_STYLES.info;
 
     useEffect(() => {
-        // Trigger slide-in animation
         const show = setTimeout(() => setVisible(true), 10);
 
-        // Progress bar countdown
         const start = Date.now();
         const duration = 4000;
         const tick = setInterval(() => {
@@ -54,16 +52,14 @@ export function Toast({ id, type = "info", title, message, onClose }) {
                 gap: "12px",
             }}
         >
-            {/* Icon */}
             <span style={{ fontSize: "20px", lineHeight: 1, flexShrink: 0, marginTop: "1px" }}>
                 {variant.icon}
             </span>
 
-            {/* Text */}
             <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{
                     margin: "0 0 4px 0",
-                    fontFamily: '"Syne", "font-sora", sans-serif',
+                    fontFamily: '"Syne", sans-serif',
                     fontWeight: 700,
                     fontSize: "14px",
                     color: "#111827",
@@ -83,7 +79,6 @@ export function Toast({ id, type = "info", title, message, onClose }) {
                 </p>
             </div>
 
-            {/* Close Button */}
             <button
                 onClick={onClose}
                 style={{
@@ -105,7 +100,6 @@ export function Toast({ id, type = "info", title, message, onClose }) {
                 ✕
             </button>
 
-            {/* Progress Bar */}
             <div style={{
                 position: "absolute",
                 bottom: 0,
